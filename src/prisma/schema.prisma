@@ -1,0 +1,50 @@
+generator client {
+  provider   = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model user {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  name        String?
+  type        String?
+  password    String?
+  createdAt   DateTime @default(now())
+  tickets     ticket[] // Update to match the model name
+  assignments assign_ticket[]
+}
+
+model ticket {
+  id           Int       @default(autoincrement()) @id
+  title        String?
+  description  String?
+  type         String?
+  venue        String?
+  status       String?
+  price        Int?
+  priority     String?
+  dueDate      DateTime?
+  createdBy    String?
+  createdAt    DateTime @default(now())
+
+// Relations
+  user         user?     @relation(fields: [createdBy], references: [id])
+  assignments assign_ticket[]
+  
+  @@unique([id, createdBy]) // Ensures that each ticket can only be created by one user
+}
+
+
+model assign_ticket {
+  userId     String
+  ticketId   Int
+  
+  user       user   @relation(fields: [userId], references: [id])
+  ticket     ticket @relation(fields: [ticketId], references: [id])
+  
+  @@id([userId, ticketId]) // Ensures that a user can only be assigned to a ticket once
+}
