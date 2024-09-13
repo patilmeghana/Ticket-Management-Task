@@ -21,7 +21,8 @@ import {
   CreateTicketDto,
   GetTicketsAnalyticsDto,
   LoginDto,
-  RegisterDto
+  RegisterDto,
+  TicketAnalyticsDto
 } from "./ticket.dto"
 import { JwtGuard } from 'src/auth/guard';
 
@@ -37,17 +38,12 @@ export class TicketController {
       const user = await this.ticketService.createUser(registerDto);
       return user;
     } catch (error) {
-      // If any error occurs, log the error and throw a generic internal server error
-      // const a = {
-      //   err: err.toString(),
-      //   req: registerDto,
-      // };
+     
       if (error instanceof ConflictException) {
         throw new ConflictException(error.message);
       }
       throw error;
-      //  this.logger.error(JSON.stringify(a, null, " "));   
-      // throw new InternalServerErrorException();
+      
     }
   }
 
@@ -59,9 +55,6 @@ export class TicketController {
       const userLogin = await this.ticketService.login(loginDto);
       return userLogin;
     } catch (error) {
-      // if (error instanceof ConflictException) {
-      //   throw new ConflictException(error.message);
-      // }
       throw error;
       // throw new InternalServerErrorException();
     }
@@ -73,7 +66,6 @@ export class TicketController {
   @HttpCode(200)
   async create(@Request() req, @Body() createTicketDto: CreateTicketDto) {
     try {
-      console.log("CONTROLLER????????????????")
       const ticket = await this.ticketService.createTicket(createTicketDto, req.user.sub);
       return ticket;
     } catch (error) {
@@ -88,7 +80,6 @@ export class TicketController {
   @Post('/tickets/:ticketId/assign')
   async assignUser(@Param('ticketId') ticketId: string, @Body() assignUserDto: AssignUserDto, @Request() req) {
     try {
-      console.log(" assign user in controller")
       const assignUser = this.ticketService.assignUser(ticketId, assignUserDto, req.user.sub);
       return assignUser;
     } catch (error) {
@@ -101,9 +92,20 @@ export class TicketController {
   @Get('analytics')
   async getTicketAnaly( @Query() query: GetTicketsAnalyticsDto,@Request() req) {
     try {
-      console.log('inside ticket analytiics controller')
       const ticketAnalytics = await this.ticketService.getTicketAnalytics(query);
       return ticketAnalytics;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(new JwtGuard()) // Ensure user is authenticated
+  @Get('/dashboard/analytics')
+  async getTicketDashboard( @Query() query: TicketAnalyticsDto,@Request() req) {
+    try {
+      const ticketDashboard = await this.ticketService.getAnalytics(query);
+      return ticketDashboard;
     } catch (error) {
       throw error;
     }

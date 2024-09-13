@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { AssignUserDto, CreateTicketDto, GetTicketsAnalyticsDto, LoginDto, RegisterDto, TicketDetailsDto } from './ticket.dto';
+import { AssignUserDto, CreateTicketDto, GetTicketsAnalyticsDto, LoginDto, RegisterDto, TicketAnalyticsDto, TicketDetailsDto } from './ticket.dto';
 import { PrismaService } from "../prisma/prisma.service";
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -20,16 +20,7 @@ export class TicketService {
             throw new ConflictException('Email is already in use');
         }
 
-        // Check for role exclusivity
-        // const existingAdmin = await this.prismaService.user.findFirst({ where: { type: 'admin' } });
-        // console.log(existingAdmin)
-        // if (type === 'admin' && existingAdmin) {
-        //     throw new ConflictException('An admin already exists');
-        // }
-        // if (type === 'customer' && existingAdmin && existingAdmin.type === 'customer') {
-        //     throw new ConflictException('A customer already exists');
-        // }
-
+       
         const saltOrRounds = 10;
 
         const hashedPassword = await bcrypt.hash(password, saltOrRounds)
@@ -76,7 +67,7 @@ export class TicketService {
 
             // Check if the user exists
             const user = await this.prismaService.user.findUnique({ where: { id: createdBy } });
-            console.log(user)
+         
             if (!user) {
                 throw new NotFoundException('User does not exist');
             }
@@ -125,16 +116,11 @@ export class TicketService {
     }
 
     async assignUser(ticketId: string, dto: AssignUserDto, currentUserId: string) {
-        console.log("ticketId///", ticketId)
-        console.log(dto),
-            console.log(currentUserId)
         try {
-            console.log('ho assign iuser')
             const { userId } = dto;
 
             // Convert ticketId to an integer
             const ticketIdInt = parseInt(ticketId);
-            console.log(ticketIdInt)
 
             if (isNaN(ticketIdInt)) {
                 throw new BadRequestException('Invalid ticket ID');
@@ -171,7 +157,7 @@ export class TicketService {
                     },
                 },
             });
-            console.log("existingAssignment", existingAssignment)
+           
             if (existingAssignment) {
                 throw new ForbiddenException('User already assigned');
             }
@@ -180,7 +166,7 @@ export class TicketService {
             const assignmentCount = await this.prismaService.assign_ticket.count({
                 where: { ticketId: ticketIdInt },
             });
-            console.log("assignmentCount//", assignmentCount)
+            
             const MAX_ASSIGNMENTS = 5; // Define your limit here
             if (assignmentCount >= MAX_ASSIGNMENTS) {
                 throw new ForbiddenException('User assignment limit reached');
@@ -188,10 +174,10 @@ export class TicketService {
 
             // Check if current user is allowed to assign
             const isCreator = ticket.createdBy === currentUserId;
-            console.log("isCreator//", isCreator);
+           
 
             const isAdmin = (await this.prismaService.user.findUnique({ where: { id: currentUserId } }))?.type === 'admin';
-            console.log("isAdmin", isAdmin)
+           
             if (!isCreator && !isAdmin) {
                 throw new UnauthorizedException('Only the creator or an admin can assign users');
             }
@@ -212,7 +198,7 @@ export class TicketService {
     async getTicketDetails(ticketId: string) {
         // Convert ticketId to an integer
         const ticketIdInt = parseInt(ticketId);
-        console.log("ticketIdInt//", ticketIdInt)
+       
         if (isNaN(ticketIdInt)) {
             throw new NotFoundException('Invalid ticket ID');
         }
@@ -228,8 +214,7 @@ export class TicketService {
                 },
             },
         });
-        console.log("ticket", ticket)
-
+    
         if (!ticket) {
             throw new NotFoundException('Ticket not found');
         }
@@ -324,5 +309,68 @@ export class TicketService {
         };
 
     }
+
+    async getAnalytics(dto: TicketAnalyticsDto) {
+        const whereConditions: any = {};
+        if (dto.startDate) {
+          whereConditions.createdAt = { gte: dto.startDate };
+        }
+        if (dto.endDate) {
+          whereConditions.createdAt = { ...whereConditions.createdAt, lte: dto.endDate };
+        }
+        if (dto.status) {
+          whereConditions.status = dto.status;
+        }
+        if (dto.priority) {
+          whereConditions.priority = dto.priority;
+        }
+        if (dto.type) {
+          whereConditions.type = dto.type;
+        }
+        if (dto.venue) {
+          whereConditions.venue = dto.venue;
+        }
+    
+        const tickets = await this.prismaService.ticket.findMany({
+          where: whereConditions,
+        });
+    
+        const totalTickets = tickets.length;
+        const closedTickets = tickets.filter(ticket => ticket.status === 'closed').length;
+        const openTickets = totalTickets - closedTickets;
+        const inProgressTickets = tickets.filter(ticket => ticket.status === 'in-progress').length;
+    
+        
+        const averageCustomerSpending  =500;
+    
+       
+        const averageTicketsBookedPerDay = 90;
+    
+        // Priority distribution
+        const priorityDistribution = {
+          low: tickets.filter(ticket => ticket.priority === 'low').length,
+          medium: tickets.filter(ticket => ticket.priority === 'medium').length,
+          high: tickets.filter(ticket => ticket.priority === 'high').length,
+        };
+    
+        return {
+          totalTickets,
+          closedTickets,
+          openTickets,
+          averageCustomerSpending,
+          averageTicketsBookedPerDay,
+          inProgressTickets,
+          priorityDistribution,
+          typeDistribution: this.getTypeDistribution(tickets),
+        };
+      }
+      
+      getTypeDistribution(tickets: any[]): any {
+        return {
+          concert: tickets.filter(ticket => ticket.type === 'concert').length,
+          conference: tickets.filter(ticket => ticket.type === 'conference').length,
+          sports: tickets.filter(ticket => ticket.type === 'sports').length,
+        };
+      }
    
 }
